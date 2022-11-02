@@ -76,11 +76,42 @@ const Status BufMgr::allocBuf(int & frame)
 	
 const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 {
-
-
-
-
-
+    FrameId currFrame;
+    //Page is in buffer
+    try{
+        hashTable -> lookup(file, PageNo, frame);
+        
+        //Set reference bit to true to stop clock from overwriting
+        bufDescTable[frame].refbit = true;
+        
+        //Increment pinCnt as there is a new user reading this page
+        bufDescTable[frame].pinCnt++;
+        
+        //Increment number of accesses to this page
+        bufStats.accesses++;
+        
+        //Return found frame
+        page = &bufPool[frame];
+    } 
+    //Page is not in buffer
+    catch (HashNotFoundException e) {
+        //Allocate new buffer frame
+        allocBuf(currFrame);
+        
+        //Get page to be read
+        Page pageToRead = file->readPage(pageNo);
+        bufStats.diskreads++;
+        
+        //Add page to buffer frame
+        bufPool[currFrame] = pageToRead;
+        bufDescTable[currFrame].Set(file, PageNo);
+        
+        //Add page to hashtable
+        hashTable->insert(file, PageNo, currFrame);
+        
+        //Return page address
+        page = &bufPool[currFrame];
+    }
 }
 
 

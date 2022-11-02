@@ -65,52 +65,76 @@ BufMgr::~BufMgr() {
 
 const Status BufMgr::allocBuf(int & frame) 
 {
-
-
-
-
-
+    Status status;
+    status = OK;
+    advanceClock();
+    for(int i = 0; i < numBufs*2; i++) {
+        BufDesc bufframe = bufTable[clockHand];
+        if(bufframe.valid == false) {
+            frame = clockHand;
+            return status;
+        } else if(bufframe.refbit == false) {
+            if(bufframe.pinCnt == 0) {
+                 if(bufframe.dirty == true) {
+                    status = bufframe.file->writePage(bufframe.pageNo, &bufPool[bufframe.pageNo]);
+                    bufStats.accesses++;
+                    hashTable->remove(bufframe.file, bufframe.pageNo);
+                    bufframe.Clear();
+                 }
+                 frame = clockHand;
+                 return status;
+            } else {
+                advanceClock();
+            }
+        } else {
+            bufTable[clockHand].refbit = false;
+            advanceClock();
+        }
+    }
+    status = BUFFEREXCEEDED;
+    return status;
 
 }
 
 	
 const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 {
-    FrameId currFrame;
+    Status status = OK;
+    int frame;
     //Page is in buffer
-    try{
-        hashTable -> lookup(file, PageNo, frame);
-        
+    status = hashTable -> lookup(file, PageNo, frame);
+    if(status == OK) {
+        BufDesc bufframe = bufTable[frame];
         //Set reference bit to true to stop clock from overwriting
-        bufDescTable[frame].refbit = true;
-        
+        bufframe.refbit = true;
         //Increment pinCnt as there is a new user reading this page
-        bufDescTable[frame].pinCnt++;
-        
+        bufframe.pinCnt++;
         //Increment number of accesses to this page
         bufStats.accesses++;
-        
         //Return found frame
         page = &bufPool[frame];
-    } 
+        return Status;
+    }
     //Page is not in buffer
-    catch (HashNotFoundException e) {
         //Allocate new buffer frame
-        allocBuf(currFrame);
-        
+    
+    status = allocBuf(frame);
+    if(status == BUFFEREXCEEDED) return status;
+
         //Get page to be read
-        Page pageToRead = file->readPage(pageNo);
-        bufStats.diskreads++;
-        
+    Page pageToRead;
+    staus = file->readPage(pageNo, &pageToRead);
+    bufStats.diskreads++;
+    if(status == UNIXERR) return status;
         //Add page to buffer frame
-        bufPool[currFrame] = pageToRead;
-        bufDescTable[currFrame].Set(file, PageNo);
+    bufPool[frame] = pageToRead;
+    bufDescTable[frame].Set(file, PageNo);
         
         //Add page to hashtable
-        hashTable->insert(file, PageNo, currFrame);
-        
+    status = hashTable->insert(file, PageNo, currFrame);
         //Return page address
-        page = &bufPool[currFrame];
+    page = &pageToRead;
+    return status;
     }
 }
 

@@ -142,17 +142,38 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 const Status BufMgr::unPinPage(File* file, const int PageNo, 
 			       const bool dirty) 
 {
-
-
-
-
-
+    Status status = OK;
+    int frame;
+    status = hashTable -> lookup(file, PageNo, frame);
+    if(status == OK) {
+        if(dirty) {
+            bufTable[frame].dirty == true;
+        }
+        if(bufTable[frame].pinCnt > 0) {
+            bufTable[frame].pinCnt--;
+            return status;
+        }
+        return PAGENOTPINNED;
+    }
+    return status;
 }
 
 const Status BufMgr::allocPage(File* file, int& pageNo, Page*& page) 
 {
-
-
+    Status status = OK;
+    file->allocatePage(pageNo);
+    int frame;
+    status = allocBuf(frame);
+    if(status == OK) {
+        status = hashTable->insert(file, pageNo, frame);
+        if(status == OK) {
+            bufTable[frame].Set(file, pageNo);
+            staus = file->readPage(pageNo, &page);
+            return status;
+        }
+        return status;
+    }
+    return status;
 
 
 

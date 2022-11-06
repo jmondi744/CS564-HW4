@@ -67,8 +67,8 @@ const Status BufMgr::allocBuf(int & frame)
 {
     Status status;
     status = OK;
-    advanceClock();
     for(int i = 0; i < numBufs*2; i++) {
+        advanceClock();
         BufDesc bufframe = bufTable[clockHand];
         if(bufframe.valid == 0) {
             frame = clockHand;
@@ -76,23 +76,20 @@ const Status BufMgr::allocBuf(int & frame)
         } else if(bufframe.refbit == false) {
             if(bufframe.pinCnt == 0) {
                  if(bufframe.dirty == true) {
-                    status = bufframe.file->writePage(bufframe.pageNo, &bufPool[bufframe.pageNo]);
+                    status = bufframe.file->writePage(bufframe.pageNo, &bufPool[clockHand]);
                     if(status != OK) {
                         return UNIXERR;
                     } else {
                         bufStats.accesses++;
-                    hashTable->remove(bufframe.file, bufframe.pageNo);
-                    bufframe.Clear();
                     } 
                  }
+                 hashTable->remove(bufframe.file, bufframe.pageNo);
+                 bufframe.Clear();
                  frame = clockHand;
                  return status;
-            } else {
-                advanceClock();
-            }
+            } 
         } else {
             bufTable[clockHand].refbit = false;
-            advanceClock();
         }
     }
     status = BUFFEREXCEEDED;
@@ -132,7 +129,6 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
         //Add page to buffer frame
     bufPool[frame] = pageToRead;
     bufTable[frame].Set(file, PageNo);
-        
         //Add page to hashtable
     status = hashTable->insert(file, PageNo, frame);
         //Return page address
